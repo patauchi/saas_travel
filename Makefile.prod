@@ -1,0 +1,320 @@
+# VTravel SaaS Platform - Production Makefile
+# ============================================
+
+# Variables
+COMPOSE = docker-compose
+COMPOSE_FILE = docker-compose.prod.yml
+PROJECT_NAME = vtravel
+BACKUP_DIR = /backup/vtravel
+DOMAIN = yourdomain.com
+
+# Colors for output
+RED = \033[0;31m
+GREEN = \033[0;32m
+YELLOW = \033[1;33m
+BLUE = \033[0;34m
+NC = \033[0m # No Color
+
+.PHONY: help
+help: ## Show this help message
+	@echo "$(GREEN)VTravel Production Management$(NC)"
+	@echo "================================"
+	@echo ""
+	@echo "$(YELLOW)Available commands:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-25s$(NC) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)Quick Commands:$(NC)"
+	@echo "  make deploy       - Full deployment"
+	@echo "  make status       - Check system status"
+	@echo "  make backup       - Backup databases"
+	@echo ""
+
+# ========================================
+# DEPLOYMENT COMMANDS
+# ========================================
+
+.PHONY: deploy
+deploy: ## Complete deployment process
+	@echo "$(GREEN)Starting deployment...$(NC)"
+	@make pull
+	@make build-prod
+	@make up-prod
+	@sleep 10
+	@make migrate
+	@make health-check
+	@echo "$(GREEN)Deployment complete!$(NC)"
+
+.PHONY: pull
+pull: ## Pull latest code from git
+	@echo "$(BLUE)Pulling latest changes...$(NC)"
+	@git pull origin main
+
+.PHONY: build-prod
+build-prod: ## Build production images
+	@echo "$(GREEN)Building production images...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) build --no-cache
+
+.PHONY: up-prod
+up-prod: ## Start production services
+	@echo "$(GREEN)Starting production services...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) up -d
+
+.PHONY: down-prod
+down-prod: ## Stop production services (preserves data)
+	@echo "$(YELLOW)Stopping production services...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) down
+
+.PHONY: restart-prod
+restart-prod: ## Restart all production services
+	@echo "$(YELLOW)Restarting production services...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) restart
+
+# ========================================
+# ROLLING UPDATE (Zero Downtime)
+# ========================================
+
+.PHONY: rolling-update
+rolling-update: ## Perform rolling update with zero downtime
+	@echo "$(GREEN)Starting rolling update...$(NC)"
+	@make backup
+	@echo "$(BLUE)Updating auth-service...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) up -d --no-deps --build auth-service
+	@sleep 5
+	@echo "$(BLUE)Updating tenant-service...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) up -d --no-deps --build tenant-service
+	@sleep 5
+	@echo "$(BLUE)Updating other services...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) up -d --no-deps --build crm-service sales-service financial-service operations-service communication-service
+	@sleep 5
+	@echo "$(BLUE)Updating nginx...$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) up -d --no-deps --build nginx
+	@echo "$(GREEN)Rolling update complete!$(NC)"
+
+# ========================================
+# DATABASE MANAGEMENT
+# ========================================
+
+.PHONY: migrate
+migrate: ## Run database migrations
+	@echo "$(GREEN)Running migrations...$(NC)"
+	@docker exec vtravel-auth php artisan migrate --force
+	@docker exec vtravel-tenant php artisan migrate --force
+	@echo "$(GREEN)Migrations complete!$(NC)"
+
+.PHONY: migrate-rollback
+migrate-rollback: ## Rollback last migration
+	@echo "$(YELLOW)Rolling back migrations...$(NC)"
+	@docker exec vtravel-auth php artisan migrate:rollback --force
+	@docker exec vtravel-tenant php artisan migrate:rollback --force
+
+.PHONY: backup
+backup: ## Backup all databases
+	@echo "$(GREEN)Creating backup...$(NC)"
+	@mkdir -p $(BACKUP_DIR)
+	@docker exec vtravel-postgres-landlord pg_dump -U vtravel vtravel_landlord | gzip > $(BACKUP_DIR)/landlord_$$(date +%Y%m%d_%H%M%S).sql.gz
+	@docker exec vtravel-postgres-tenant pg_dump -U vtravel vtravel_tenants | gzip > $(BACKUP_DIR)/tenants_$$(date +%Y%m%d_%H%M%S).sql.gz
+	@echo "$(GREEN)Backup completed at $(BACKUP_DIR)$(NC)"
+
+.PHONY: restore
+restore: ## Restore database from backup (usage: make restore FILE=backup.sql.gz)
+	@echo "$(YELLOW)Restoring database from $(FILE)...$(NC)"
+	@gunzip < $(FILE) | docker exec -i vtravel-postgres-landlord psql -U vtravel vtravel_landlord
+	@echo "$(GREEN)Restore complete!$(NC)"
+
+# ========================================
+# MONITORING & HEALTH
+# ========================================
+
+.PHONY: status
+status: ## Show production status
+	@echo "$(GREEN)=== System Status ===$(NC)"
+	@$(COMPOSE) -f $(COMPOSE_FILE) ps
+	@echo ""
+	@echo "$(GREEN)=== Resource Usage ===$(NC)"
+	@docker stats --no-stream
+	@echo ""
+	@echo "$(GREEN)=== Disk Usage ===$(NC)"
+	@df -h | grep -E 'Filesystem|/$|/var'
+
+.PHONY: health-check
+health-check: ## Check health of all services
+	@echo "$(GREEN)Checking service health...$(NC)"
+	@curl -s https://$(DOMAIN)/health | python3 -m json.tool || echo "$(RED)Health check failed$(NC)"
+
+.PHONY: logs
+logs: ## Show all logs
+	@$(COMPOSE) -f $(COMPOSE_FILE) logs -f
+
+.PHONY: logs-errors
+logs-errors: ## Show only error logs
+	@$(COMPOSE) -f $(COMPOSE_FILE) logs --tail=100 | grep -E 'ERROR|CRITICAL|FATAL'
+
+.PHONY: monitor
+monitor: ## Live monitoring dashboard
+	@watch -n 5 'docker stats --no-stream && echo "" && docker-compose -f docker-compose.prod.yml ps'
+
+# ========================================
+# MAINTENANCE MODE
+# ========================================
+
+.PHONY: maintenance-on
+maintenance-on: ## Enable maintenance mode
+	@echo "$(YELLOW)Enabling maintenance mode...$(NC)"
+	@docker exec vtravel-auth php artisan down --message="System maintenance in progress" --retry=60
+	@docker exec vtravel-tenant php artisan down --message="System maintenance in progress" --retry=60
+	@echo "$(GREEN)Maintenance mode enabled$(NC)"
+
+.PHONY: maintenance-off
+maintenance-off: ## Disable maintenance mode
+	@echo "$(GREEN)Disabling maintenance mode...$(NC)"
+	@docker exec vtravel-auth php artisan up
+	@docker exec vtravel-tenant php artisan up
+	@echo "$(GREEN)Maintenance mode disabled$(NC)"
+
+# ========================================
+# CACHE MANAGEMENT
+# ========================================
+
+.PHONY: cache-clear
+cache-clear: ## Clear all caches
+	@echo "$(YELLOW)Clearing caches...$(NC)"
+	@docker exec vtravel-auth php artisan cache:clear
+	@docker exec vtravel-auth php artisan config:clear
+	@docker exec vtravel-auth php artisan view:clear
+	@docker exec vtravel-tenant php artisan cache:clear
+	@docker exec vtravel-tenant php artisan config:clear
+	@docker exec vtravel-tenant php artisan view:clear
+	@echo "$(GREEN)Caches cleared$(NC)"
+
+.PHONY: cache-warm
+cache-warm: ## Warm up caches
+	@echo "$(GREEN)Warming up caches...$(NC)"
+	@docker exec vtravel-auth php artisan config:cache
+	@docker exec vtravel-auth php artisan route:cache
+	@docker exec vtravel-auth php artisan view:cache
+	@docker exec vtravel-tenant php artisan config:cache
+	@docker exec vtravel-tenant php artisan route:cache
+	@docker exec vtravel-tenant php artisan view:cache
+	@echo "$(GREEN)Caches warmed up$(NC)"
+
+# ========================================
+# SSL MANAGEMENT
+# ========================================
+
+.PHONY: ssl-renew
+ssl-renew: ## Renew SSL certificates
+	@echo "$(GREEN)Renewing SSL certificates...$(NC)"
+	@certbot renew --nginx
+	@$(COMPOSE) -f $(COMPOSE_FILE) exec nginx nginx -s reload
+	@echo "$(GREEN)SSL certificates renewed$(NC)"
+
+.PHONY: ssl-check
+ssl-check: ## Check SSL certificate expiry
+	@echo "$(BLUE)Checking SSL certificate...$(NC)"
+	@echo | openssl s_client -servername $(DOMAIN) -connect $(DOMAIN):443 2>/dev/null | openssl x509 -noout -dates
+
+# ========================================
+# SECURITY
+# ========================================
+
+.PHONY: security-check
+security-check: ## Run security checks
+	@echo "$(BLUE)Running security checks...$(NC)"
+	@echo "$(YELLOW)Checking for exposed ports...$(NC)"
+	@netstat -tuln | grep LISTEN
+	@echo ""
+	@echo "$(YELLOW)Checking fail2ban status...$(NC)"
+	@sudo fail2ban-client status
+	@echo ""
+	@echo "$(YELLOW)Checking firewall status...$(NC)"
+	@sudo ufw status verbose
+
+.PHONY: update-passwords
+update-passwords: ## Update all passwords (interactive)
+	@echo "$(RED)This will update all passwords. Make sure to backup first!$(NC)"
+	@read -p "Continue? (y/N) " confirm && [ "$$confirm" = "y" ] || exit 1
+	@echo "Generating new passwords..."
+	@openssl rand -base64 32
+	@echo "Update these in .env file and run: make restart-prod"
+
+# ========================================
+# CLEANUP & OPTIMIZATION
+# ========================================
+
+.PHONY: cleanup
+cleanup: ## Clean up docker resources
+	@echo "$(YELLOW)Cleaning up Docker resources...$(NC)"
+	@docker system prune -f
+	@docker image prune -f
+	@echo "$(GREEN)Cleanup complete$(NC)"
+
+.PHONY: optimize
+optimize: ## Optimize database and clear old logs
+	@echo "$(GREEN)Optimizing system...$(NC)"
+	@docker exec vtravel-postgres-landlord vacuumdb -U vtravel -d vtravel_landlord -z
+	@docker exec vtravel-postgres-tenant vacuumdb -U vtravel -d vtravel_tenants -z
+	@find /var/log -name "*.log" -type f -mtime +30 -delete
+	@echo "$(GREEN)Optimization complete$(NC)"
+
+# ========================================
+# EMERGENCY PROCEDURES
+# ========================================
+
+.PHONY: emergency-stop
+emergency-stop: ## Emergency stop all services
+	@echo "$(RED)EMERGENCY STOP - Stopping all services immediately!$(NC)"
+	@docker stop $$(docker ps -q)
+
+.PHONY: emergency-restart
+emergency-restart: ## Emergency restart
+	@echo "$(RED)EMERGENCY RESTART - Restarting all services!$(NC)"
+	@make emergency-stop
+	@sleep 5
+	@make up-prod
+	@make health-check
+
+.PHONY: rollback
+rollback: ## Rollback to previous version
+	@echo "$(YELLOW)Rolling back to previous version...$(NC)"
+	@git checkout HEAD~1
+	@make deploy
+	@echo "$(GREEN)Rollback complete$(NC)"
+
+# ========================================
+# TENANT MANAGEMENT
+# ========================================
+
+.PHONY: create-tenant-prod
+create-tenant-prod: ## Create new tenant in production
+	@echo "$(GREEN)Creating new tenant...$(NC)"
+	@read -p "Tenant name: " name; \
+	read -p "Tenant slug: " slug; \
+	read -p "Admin email: " email; \
+	docker exec -it vtravel-tenant php artisan tenant:create "$$slug" --name="$$name" --email="$$email"
+
+.PHONY: list-tenants-prod
+list-tenants-prod: ## List all production tenants
+	@docker exec vtravel-tenant php artisan tenant:list
+
+# ========================================
+# REPORTING
+# ========================================
+
+.PHONY: report
+report: ## Generate system report
+	@echo "$(BLUE)Generating system report...$(NC)"
+	@echo "=== VTravel Production Report ===" > report_$$(date +%Y%m%d).txt
+	@echo "Date: $$(date)" >> report_$$(date +%Y%m%d).txt
+	@echo "" >> report_$$(date +%Y%m%d).txt
+	@echo "=== Services Status ===" >> report_$$(date +%Y%m%d).txt
+	@$(COMPOSE) -f $(COMPOSE_FILE) ps >> report_$$(date +%Y%m%d).txt
+	@echo "" >> report_$$(date +%Y%m%d).txt
+	@echo "=== Resource Usage ===" >> report_$$(date +%Y%m%d).txt
+	@docker stats --no-stream >> report_$$(date +%Y%m%d).txt
+	@echo "" >> report_$$(date +%Y%m%d).txt
+	@echo "=== Disk Usage ===" >> report_$$(date +%Y%m%d).txt
+	@df -h >> report_$$(date +%Y%m%d).txt
+	@echo "$(GREEN)Report saved to report_$$(date +%Y%m%d).txt$(NC)"
+
+# Default target
+.DEFAULT_GOAL := help
