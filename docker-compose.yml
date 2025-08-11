@@ -1,330 +1,440 @@
+version: '3.9'
+
 networks:
-  microservices_network:
+  vtravel-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
-  postgres_central_data:
-  postgres_tenants_data:
-  redis_data:
-
-secrets:
-  postgres_password:
-    file: ./secrets/postgres_password.txt
-  jwt_secret:
-    file: ./secrets/jwt_secret.txt
+  postgres-landlord-data:
+  postgres-tenant-data:
+  redis-data:
+  rabbitmq-data:
+  minio-data:
 
 services:
-  # PostgreSQL Central (Para gestión de tenants)
-  postgres-central:
-    image: postgres:15-alpine
-    container_name: postgres-central
-    restart: unless-stopped
-    networks:
-      - microservices_network
-    volumes:
-      - postgres_central_data:/var/lib/postgresql/data
-      - ./scripts/postgres-init:/docker-entrypoint-initdb.d
-    environment:
-      POSTGRES_DB: central_management
-      POSTGRES_USER: laravel_user
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U laravel_user -d central_management"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    ports:
-      - "5432:5432"
-
-  # PostgreSQL para Tenants
-  postgres-tenants:
-    image: postgres:15-alpine
-    container_name: postgres-tenants
-    restart: unless-stopped
-    networks:
-      - microservices_network
-    volumes:
-      - postgres_tenants_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: laravel_user
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U laravel_user"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    ports:
-      - "5433:5432"
-
-  # Redis para Cache y Sessions
-  redis:
-    image: redis:7-alpine
-    container_name: redis-cache
-    restart: unless-stopped
-    networks:
-      - microservices_network
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --requirepass OZehmQFsGbBgU9hAA7jojlzpL
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    ports:
-      - "6379:6379"
-
-  # Servicio Central de Gestión (con stancl/tenancy)
-  central-management:
+  # ========================================
+  # NGINX - Gateway & Routing Multi-tenant
+  # ========================================
+  nginx:
     build:
-      context: ./services/central-management
+      context: ./nginx
       dockerfile: Dockerfile
-    container_name: central-management
-    restart: unless-stopped
-    networks:
-      - microservices_network
-    volumes:
-      - ./services/central-management:/var/www/html
-      - ./shared:/var/www/shared
-    depends_on:
-      postgres-central:
-        condition: service_healthy
-      postgres-tenants:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    container_name: vtravel-nginx
+    ports:
+      - "80:80"
+      - "443:443"
     environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_KEY: base64:your_app_key_here_generate_with_artisan
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres-central
-      DB_PORT: 5432
-      DB_DATABASE: central_management
-      DB_USERNAME: laravel_user
-      DB_PASSWORD_FILE: /run/secrets/postgres_password
-      TENANCY_DB_HOST: postgres-tenants
-      TENANCY_DB_PORT: 5432
-      REDIS_HOST: redis
-      REDIS_PASSWORD: OZehmQFsGbBgU9hAA7jojlzpL
-      REDIS_PORT: 6379
-      CACHE_DRIVER: redis
-      SESSION_DRIVER: redis
-      QUEUE_CONNECTION: redis
-    secrets:
-      - postgres_password
-      - jwt_secret
+      - DOMAIN=vtravel.local
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - health-service
+      - auth-service
+      - tenant-service
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.0.2
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "nginx", "-t"]
       interval: 30s
       timeout: 10s
       retries: 3
-    ports:
-      - "8001:80"
 
-  # Servicio de Autenticación
+  # ========================================
+  # HEALTH CHECK SERVICE
+  # ========================================
+  health-service:
+    build:
+      context: ./services/health-service
+      dockerfile: Dockerfile
+    container_name: vtravel-health
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - SERVICES_TO_CHECK=postgres-landlord,postgres-tenant,redis,rabbitmq,auth-service,tenant-service
+    volumes:
+      - ./services/health-service:/app
+      - /app/node_modules
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.1.1
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========================================
+  # AUTH SERVICE
+  # ========================================
   auth-service:
     build:
       context: ./services/auth-service
       dockerfile: Dockerfile
-    container_name: auth-service
-    restart: unless-stopped
-    networks:
-      - microservices_network
+    container_name: vtravel-auth
+    environment:
+      - APP_NAME=VTravel Auth
+      - APP_ENV=local
+      - APP_KEY=base64:YXV0aHNlcnZpY2VrZXkxMjM0NTY3ODkwYWJjZGVmZ2hpams=
+      - APP_DEBUG=true
+      - APP_URL=http://localhost
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres-landlord
+      - DB_PORT=5432
+      - DB_DATABASE=vtravel_auth
+      - DB_USERNAME=vtravel
+      - DB_PASSWORD=vtravel123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=jwt_secret_key_123456789
+      - TENANT_DETECTION=subdomain
     volumes:
       - ./services/auth-service:/var/www/html
-      - ./shared:/var/www/shared
     depends_on:
-      central-management:
-        condition: service_healthy
-    environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_KEY: base64:your_app_key_here_generate_with_artisan
-      CENTRAL_MANAGEMENT_URL: http://central-management
-      REDIS_HOST: redis
-      REDIS_PASSWORD: OZehmQFsGbBgU9hAA7jojlzpL
-      REDIS_PORT: 6379
-      CACHE_DRIVER: redis
-      SESSION_DRIVER: redis
-      JWT_SECRET_FILE: /run/secrets/jwt_secret
-    secrets:
-      - jwt_secret
-      - postgres_password
+      - postgres-landlord
+      - redis
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.2.1
+    ports:
+      - "9001:9000"
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-    ports:
-      - "8002:80"
 
-  # Servicio de Ventas
+  # ========================================
+  # TENANT SERVICE
+  # ========================================
+  tenant-service:
+    build:
+      context: ./services/tenant-service
+      dockerfile: Dockerfile
+    container_name: vtravel-tenant
+    environment:
+      - APP_NAME=VTravel Tenant Manager
+      - APP_ENV=local
+      - APP_KEY=base64:dGVuYW50c2VydmljZWtleTEyMzQ1Njc4OTBhYmNkZWZnaGlqaw==
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres-landlord
+      - DB_PORT=5432
+      - DB_DATABASE=vtravel_landlord
+      - DB_USERNAME=vtravel
+      - DB_PASSWORD=vtravel123
+      - TENANT_DB_HOST=postgres-tenant
+      - TENANT_DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./services/tenant-service:/var/www/html
+    depends_on:
+      - postgres-landlord
+      - postgres-tenant
+      - redis
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.2.2
+    ports:
+      - "9002:9000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========================================
+  # CRM SERVICE
+  # ========================================
+  crm-service:
+    build:
+      context: ./services/crm-service
+      dockerfile: Dockerfile
+    container_name: vtravel-crm
+    environment:
+      - APP_NAME=VTravel CRM
+      - APP_ENV=local
+      - APP_KEY=base64:Y3Jtc2VydmljZWtleTEyMzQ1Njc4OTBhYmNkZWZnaGlqaw==
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres-tenant
+      - DB_PORT=5432
+      - DB_USERNAME=vtravel
+      - DB_PASSWORD=vtravel123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASSWORD=admin123
+      - TENANT_CONNECTION=true
+    volumes:
+      - ./services/crm-service:/var/www/html
+    depends_on:
+      - postgres-tenant
+      - redis
+      - rabbitmq
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.2.3
+    ports:
+      - "9003:9000"
+    restart: unless-stopped
+
+  # ========================================
+  # SALES SERVICE
+  # ========================================
   sales-service:
     build:
       context: ./services/sales-service
       dockerfile: Dockerfile
-    container_name: sales-service
-    restart: unless-stopped
-    networks:
-      - microservices_network
+    container_name: vtravel-sales
+    environment:
+      - APP_NAME=VTravel Sales
+      - APP_ENV=local
+      - APP_KEY=base64:c2FsZXNzZXJ2aWNla2V5MTIzNDU2Nzg5MGFiY2RlZmdoaWpr
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres-tenant
+      - DB_PORT=5432
+      - DB_USERNAME=vtravel
+      - DB_PASSWORD=vtravel123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TENANT_CONNECTION=true
     volumes:
       - ./services/sales-service:/var/www/html
-      - ./shared:/var/www/shared
     depends_on:
-      central-management:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-    environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_KEY: base64:your_app_key_here_generate_with_artisan
-      CENTRAL_MANAGEMENT_URL: http://central-management
-      AUTH_SERVICE_URL: http://auth-service
-      REDIS_HOST: redis
-      REDIS_PASSWORD: OZehmQFsGbBgU9hAA7jojlzpL
-      REDIS_PORT: 6379
-      CACHE_DRIVER: redis
-      SESSION_DRIVER: redis
-      QUEUE_CONNECTION: redis
-    secrets:
-      - postgres_password
-      - jwt_secret
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - postgres-tenant
+      - redis
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.2.4
     ports:
-      - "8003:80"
+      - "9004:9000"
+    restart: unless-stopped
 
-  # Servicio de Operaciones
+  # ========================================
+  # FINANCIAL SERVICE
+  # ========================================
+  financial-service:
+    build:
+      context: ./services/financial-service
+      dockerfile: Dockerfile
+    container_name: vtravel-financial
+    environment:
+      - APP_NAME=VTravel Financial
+      - APP_ENV=local
+      - APP_KEY=base64:ZmluYW5jaWFsc2VydmljZWtleTEyMzQ1Njc4OTBhYmNkZWZn
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres-tenant
+      - DB_PORT=5432
+      - DB_USERNAME=vtravel
+      - DB_PASSWORD=vtravel123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TENANT_CONNECTION=true
+    volumes:
+      - ./services/financial-service:/var/www/html
+    depends_on:
+      - postgres-tenant
+      - redis
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.2.5
+    ports:
+      - "9005:9000"
+    restart: unless-stopped
+
+  # ========================================
+  # OPERATIONS SERVICE
+  # ========================================
   operations-service:
     build:
       context: ./services/operations-service
       dockerfile: Dockerfile
-    container_name: operations-service
-    restart: unless-stopped
-    networks:
-      - microservices_network
+    container_name: vtravel-operations
+    environment:
+      - APP_NAME=VTravel Operations
+      - APP_ENV=local
+      - APP_KEY=base64:b3BlcmF0aW9uc3NlcnZpY2VrZXkxMjM0NTY3ODkwYWJjZGVm
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres-tenant
+      - DB_PORT=5432
+      - DB_USERNAME=vtravel
+      - DB_PASSWORD=vtravel123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TENANT_CONNECTION=true
     volumes:
       - ./services/operations-service:/var/www/html
-      - ./shared:/var/www/shared
     depends_on:
-      central-management:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-    environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_KEY: base64:your_app_key_here_generate_with_artisan
-      CENTRAL_MANAGEMENT_URL: http://central-management
-      AUTH_SERVICE_URL: http://auth-service
-      REDIS_HOST: redis
-      REDIS_PASSWORD: OZehmQFsGbBgU9hAA7jojlzpL
-      REDIS_PORT: 6379
-      CACHE_DRIVER: redis
-      SESSION_DRIVER: redis
-      QUEUE_CONNECTION: redis
-    secrets:
-      - postgres_password
-      - jwt_secret
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - postgres-tenant
+      - redis
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.2.6
     ports:
-      - "8004:80"
+      - "9006:9000"
+    restart: unless-stopped
 
-  # Queue Worker para Jobs de Tenants
-  queue-worker:
+  # ========================================
+  # COMMUNICATION SERVICE
+  # ========================================
+  communication-service:
     build:
-      context: ./services/central-management
+      context: ./services/communication-service
       dockerfile: Dockerfile
-    container_name: queue-worker
-    restart: unless-stopped
-    networks:
-      - microservices_network
-    volumes:
-      - ./services/central-management:/var/www/html
-      - ./shared:/var/www/shared
-    depends_on:
-      central-management:
-        condition: service_healthy
-    command: php artisan queue:work --queue=tenants,default --tries=3 --timeout=90
+    container_name: vtravel-communication
     environment:
-      APP_ENV: local
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres-central
-      DB_PORT: 5432
-      DB_DATABASE: central_management
-      DB_USERNAME: laravel_user
-      DB_PASSWORD_FILE: /run/secrets/postgres_password
-      TENANCY_DB_HOST: postgres-tenants
-      REDIS_HOST: redis
-      REDIS_PASSWORD: OZehmQFsGbBgU9hAA7jojlzpL
-      QUEUE_CONNECTION: redis
-    secrets:
-      - postgres_password
-      - jwt_secret
-
-  # API Gateway (Nginx)
-  api-gateway:
-    image: nginx:alpine
-    container_name: api-gateway
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    networks:
-      - microservices_network
+      - APP_NAME=VTravel Communication
+      - APP_ENV=local
+      - APP_KEY=base64:Y29tbXVuaWNhdGlvbnNlcnZpY2VrZXkxMjM0NTY3ODkwYWJj
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres-tenant
+      - DB_PORT=5432
+      - DB_USERNAME=vtravel
+      - DB_PASSWORD=vtravel123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TENANT_CONNECTION=true
     volumes:
-      - ./nginx/api-gateway.conf:/etc/nginx/conf.d/default.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-      - ./nginx/logs:/var/log/nginx
+      - ./services/communication-service:/var/www/html
     depends_on:
-      - central-management
-      - auth-service
-      - sales-service
-      - operations-service
+      - postgres-tenant
+      - redis
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.2.7
+    ports:
+      - "9007:9000"
+    restart: unless-stopped
+
+  # ========================================
+  # DATABASES
+  # ========================================
+  postgres-landlord:
+    image: postgres:15-alpine
+    container_name: vtravel-postgres-landlord
+    environment:
+      - POSTGRES_USER=vtravel
+      - POSTGRES_PASSWORD=vtravel123
+      - POSTGRES_DB=vtravel_landlord
+    volumes:
+      - postgres-landlord-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init/landlord:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.3.1
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD-SHELL", "pg_isready -U vtravel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-tenant:
+    image: postgres:15-alpine
+    container_name: vtravel-postgres-tenant
+    environment:
+      - POSTGRES_USER=vtravel
+      - POSTGRES_PASSWORD=vtravel123
+      - POSTGRES_DB=tenant_template
+    volumes:
+      - postgres-tenant-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init/tenant:/docker-entrypoint-initdb.d
+    ports:
+      - "5433:5432"
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.3.2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vtravel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # CACHE & QUEUE
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: vtravel-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.3.3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: vtravel-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.3.4
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ========================================
+  # STORAGE
+  # ========================================
+  minio:
+    image: minio/minio:latest
+    container_name: vtravel-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9010:9001"
+    networks:
+      vtravel-network:
+        ipv4_address: 172.20.3.5
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # Mailhog para desarrollo (captura de emails)
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: mailhog
-    restart: unless-stopped
-    networks:
-      - microservices_network
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-
-  # PhpMyAdmin (opcional para desarrollo)
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: phpmyadmin
-    restart: unless-stopped
-    networks:
-      - microservices_network
-    ports:
-      - "8080:80"
-    environment:
-      PMA_ARBITRARY: 1
-      PMA_HOST: postgres-central
-      PMA_USER: laravel_user
-      PMA_PASSWORD: yourpassword
-    depends_on:
-      - postgres-central
-      - postgres-tenants

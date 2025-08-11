@@ -1,451 +1,323 @@
-# Laravel Microservices with stancl/tenancy
+# VTravel SaaS Platform
 
-A production-ready microservices architecture for SaaS applications using Laravel and stancl/tenancy for multi-tenant support.
-
-## 🏗️ Architecture Overview
-
-This project implements a robust microservices architecture with the following components:
-
-- **Central Management Service**: Manages tenants using stancl/tenancy
-- **Auth Service**: Centralized authentication with JWT
-- **Sales Service**: Handles sales-related operations
-- **Operations Service**: Manages operational workflows
-- **API Gateway**: Nginx-based load balancer and reverse proxy
-- **PostgreSQL**: Separate databases for central management and tenants
-- **Redis**: Caching and session management
-- **Queue Workers**: Background job processing
-
-## 📋 Prerequisites
-
-- Docker & Docker Compose
-- Git
-- 8GB RAM minimum (recommended 16GB)
-- 20GB free disk space
+A comprehensive multi-tenant SaaS platform for travel agencies built with Docker, Laravel microservices, and modern web technologies.
 
 ## 🚀 Quick Start
 
-### 1. Clone the Repository
+### Prerequisites
 
+- Docker & Docker Compose installed
+- Make command available (optional but recommended)
+- At least 4GB of RAM available for Docker
+- Ports 80, 443, 3000, 5432, 5433, 6379, 9000-9010 available
+
+### Setup & Run
+
+1. **Clone the repository** (if not already done):
 ```bash
-git clone <repository-url>
-cd saas_travel
+cd /Users/pjoser/Dropbox/ZS/Sites/saas_travel
 ```
 
-### 2. Initialize the Environment
-
+2. **Initial setup** (first time only):
 ```bash
-chmod +x scripts/init.sh
-./scripts/init.sh
-```
-
-This script will:
-- Generate secure passwords and secrets
-- Create necessary directories
-- Configure environment files
-- Build and start Docker containers
-- Set up PostgreSQL databases
-
-### 3. Install Laravel in Services
-
-```bash
-chmod +x scripts/install-laravel.sh
-./scripts/install-laravel.sh
-```
-
-This will install Laravel and required packages in each service.
-
-### 4. Configure Tenancy
-
-```bash
-# Access the central management container
-docker-compose exec central-management bash
-
-# Install tenancy
-php artisan tenancy:install
-
-# Run migrations
-php artisan migrate
-
-# Exit container
-exit
-```
-
-### 5. Create Your First Tenant
-
-```bash
-# Using curl
-curl -X POST http://localhost:8001/api/tenants \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Acme Corporation",
-    "email": "admin@acme.com",
-    "domain": "acme.localhost",
-    "plan": "premium"
-  }'
-
-# Or using Artisan Tinker
-docker-compose exec central-management php artisan tinker
->>> $tenant = App\Models\Tenant::create(['id' => 'acme', 'name' => 'Acme Corp']);
->>> $tenant->domains()->create(['domain' => 'acme.localhost']);
-```
-
-## 🏢 Project Structure
-
-```
-saas_travel/
-├── docker-compose.yml           # Docker services configuration
-├── nginx/
-│   ├── api-gateway.conf        # API Gateway configuration
-│   ├── ssl/                    # SSL certificates (production)
-│   └── logs/                   # Nginx logs
-├── services/
-│   ├── central-management/     # Tenant management service
-│   ├── auth-service/          # Authentication service
-│   ├── sales-service/         # Sales operations
-│   └── operations-service/    # Business operations
-├── shared/
-│   ├── middleware/            # Shared middleware components
-│   │   └── TenantResolver.php # Tenant resolution middleware
-│   ├── traits/               # Shared PHP traits
-│   └── configs/              # Shared configurations
-├── scripts/
-│   ├── init.sh               # Initial setup script
-│   ├── install-laravel.sh    # Laravel installation script
-│   ├── backup-tenants.sh     # Database backup script
-│   └── postgres-init/        # PostgreSQL initialization
-├── secrets/                   # Generated secrets (git-ignored)
-└── backups/                  # Database backups
-```
-
-## 🔌 Service Endpoints
-
-| Service | Port | Health Check | Description |
-|---------|------|--------------|-------------|
-| API Gateway | 80 | `/health` | Main entry point |
-| Central Management | 8001 | `/health.php` | Tenant management |
-| Auth Service | 8002 | `/health.php` | Authentication |
-| Sales Service | 8003 | `/health.php` | Sales operations |
-| Operations Service | 8004 | `/health.php` | Business operations |
-| PostgreSQL Central | 5432 | - | Central database |
-| PostgreSQL Tenants | 5433 | - | Tenant databases |
-| Redis | 6379 | - | Cache & sessions |
-| Mailhog | 8025 | - | Email testing UI |
-
-## 🔐 Security Features
-
-### Authentication & Authorization
-- JWT-based authentication
-- Service-to-service authentication tokens
-- Role-based access control (RBAC)
-- Tenant isolation
-
-### Network Security
-- Rate limiting per endpoint
-- CORS configuration
-- Security headers (XSS, CSRF protection)
-- Circuit breaker pattern
-
-### Data Security
-- Encrypted secrets management
-- Database-level tenant isolation
-- Secure password storage
-- SSL/TLS support (production)
-
-## 📊 Database Architecture
-
-### Central Database
-- Manages tenant metadata
-- Stores domains and configurations
-- Handles billing and plans
-
-### Tenant Databases
-- Complete data isolation
-- Separate database per tenant
-- Automatic provisioning
-- Independent migrations
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Each service has its own `.env` file in `services/<service-name>/.env`
-
-Key variables:
-- `APP_KEY`: Laravel application key
-- `JWT_SECRET`: JWT signing secret
-- `SERVICE_TOKEN`: Inter-service authentication
-- `REDIS_PASSWORD`: Redis authentication
-- `DB_PASSWORD`: PostgreSQL password
-
-### Tenant Configuration
-
-Edit `services/central-management/config/tenancy.php`:
-
-```php
-return [
-    'tenant_model' => \App\Models\Tenant::class,
-    'id_generator' => Stancl\Tenancy\UUIDGenerator::class,
-    'database' => [
-        'prefix_base' => 'tenant_',
-    ],
-];
-```
-
-## 🛠️ Development
-
-### Accessing Services
-
-```bash
-# Enter a service container
-docker-compose exec <service-name> bash
-
-# Run Artisan commands
-docker-compose exec central-management php artisan migrate
-
-# View logs
-docker-compose logs -f <service-name>
-
-# Restart a service
-docker-compose restart <service-name>
-```
-
-### Adding a New Service
-
-1. Create service directory: `mkdir services/new-service`
-2. Copy Dockerfile: `cp services/central-management/Dockerfile services/new-service/`
-3. Add to `docker-compose.yml`
-4. Configure environment variables
-5. Rebuild: `docker-compose build new-service`
-
-### Running Tests
-
-```bash
-# Run tests for a specific service
-docker-compose exec central-management php artisan test
-
-# Run with coverage
-docker-compose exec central-management php artisan test --coverage
-```
-
-## 📈 Monitoring & Logging
-
-### View Logs
-
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f central-management
-
-# Nginx access logs
-tail -f nginx/logs/access.log
-```
-
-### Health Checks
-
-```bash
-# Check all services
-curl http://localhost/health
-curl http://localhost:8001/health.php
-curl http://localhost:8002/health.php
-curl http://localhost:8003/health.php
-curl http://localhost:8004/health.php
-```
-
-### Performance Monitoring
-
-The system includes:
-- Request/response time logging
-- Database query logging
-- Cache hit/miss ratios
-- Queue job metrics
-
-## 🔄 Backup & Recovery
-
-### Manual Backup
-
-```bash
-./scripts/backup-tenants.sh
-```
-
-### Automated Backups
-
-Add to crontab:
-```bash
-0 2 * * * /path/to/project/scripts/backup-tenants.sh
-```
-
-### Restore from Backup
-
-```bash
-# Extract backup
-tar -xzf backups/backup_TIMESTAMP.tar.gz
-
-# Restore central database
-docker exec -i postgres-central psql -U laravel_user central_management < central_TIMESTAMP.sql
-
-# Restore tenant database
-docker exec -i postgres-tenants psql -U laravel_user tenant_ID < tenant_ID_TIMESTAMP.sql
-```
-
-## 🚀 Production Deployment
-
-### 1. Update Secrets
-
-```bash
-# Generate strong passwords
-openssl rand -base64 32 > secrets/postgres_password.txt
-openssl rand -base64 32 > secrets/jwt_secret.txt
-openssl rand -base64 32 > secrets/service_token.txt
-```
-
-### 2. Configure SSL
-
-Place SSL certificates in `nginx/ssl/`:
-- `cert.pem`: SSL certificate
-- `key.pem`: Private key
-
-Uncomment HTTPS configuration in `nginx/api-gateway.conf`
-
-### 3. Environment Configuration
-
-Update `.env` files for production:
-- Set `APP_ENV=production`
-- Set `APP_DEBUG=false`
-- Configure production database credentials
-- Set proper APP_URL
-
-### 4. Optimize Laravel
-
-```bash
-# For each service
-docker-compose exec <service> php artisan config:cache
-docker-compose exec <service> php artisan route:cache
-docker-compose exec <service> php artisan view:cache
-```
-
-### 5. Scale Services
-
-Edit `docker-compose.yml`:
-```yaml
-services:
-  central-management:
-    deploy:
-      replicas: 3
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### Services not starting
-```bash
-# Check logs
-docker-compose logs <service-name>
-
-# Rebuild containers
+# Using Make (recommended)
+make setup
+
+# Or manually
+cp .env.example .env
 docker-compose build --no-cache
+```
+
+3. **Start all services**:
+```bash
+# Using Make
+make up
+
+# Or using Docker Compose directly
 docker-compose up -d
 ```
 
-#### Database connection errors
+4. **Check services health**:
 ```bash
-# Check PostgreSQL is running
+# Using Make
+make health
+
+# Or directly via curl
+curl http://localhost:3000/health/services | python3 -m json.tool
+```
+
+## 📊 Service Health Dashboard
+
+Once all services are running, you can access the health dashboard at:
+- **Health Check**: http://localhost:3000/health
+- **Detailed Services Status**: http://localhost:3000/health/services
+- **Individual Service**: http://localhost:3000/health/{service-name}
+
+## 🏗️ Architecture Overview
+
+### Microservices
+
+| Service | Port | Description | Health Check |
+|---------|------|-------------|--------------|
+| **Nginx Gateway** | 80, 443 | API Gateway & Reverse Proxy | http://localhost/health |
+| **Health Service** | 3000 | System monitoring & health checks | http://localhost:3000/health |
+| **Auth Service** | 9001 | Authentication & authorization | http://localhost:9001/health |
+| **Tenant Service** | 9002 | Multi-tenancy management | http://localhost:9002/health |
+| **CRM Service** | 9003 | Customer relationship management | http://localhost:9003/health |
+| **Sales Service** | 9004 | Quotes, orders & sales | http://localhost:9004/health |
+| **Financial Service** | 9005 | Invoicing & payments | http://localhost:9005/health |
+| **Operations Service** | 9006 | Bookings & operations | http://localhost:9006/health |
+| **Communication Service** | 9007 | Chat, inbox & notifications | http://localhost:9007/health |
+
+### Infrastructure Services
+
+| Service | Port | Description | Credentials |
+|---------|------|-------------|-------------|
+| **PostgreSQL Landlord** | 5432 | Central database | vtravel / vtravel123 |
+| **PostgreSQL Tenant** | 5433 | Tenant databases | vtravel / vtravel123 |
+| **Redis** | 6379 | Cache & sessions | No auth |
+| **RabbitMQ** | 5672, 15672 | Message queue | admin / admin123 |
+| **MinIO** | 9000, 9010 | Object storage | minioadmin / minioadmin123 |
+
+## 🛠️ Common Commands
+
+### Using Make (Recommended)
+
+```bash
+# Service Management
+make up              # Start all services
+make down            # Stop all services
+make restart         # Restart all services
+make ps             # Show container status
+make logs           # Show all logs
+make health         # Check health status
+
+# Database Access
+make db-landlord    # Connect to landlord database
+make db-tenant      # Connect to tenant database
+make redis-cli      # Connect to Redis CLI
+
+# Service Logs
+make logs-auth      # Auth service logs
+make logs-nginx     # Nginx logs
+make logs-db        # Database logs
+
+# Development
+make shell-auth     # Shell into auth service
+make shell-health   # Shell into health service
+
+# Cleanup
+make clean          # Clean up Docker resources
+make clean-all      # WARNING: Remove everything including data
+```
+
+### Direct Docker Commands
+
+```bash
+# Start services
+docker-compose up -d
+
+# Check status
 docker-compose ps
 
-# Test connection
-docker-compose exec postgres-central psql -U laravel_user -d central_management
+# View logs
+docker-compose logs -f [service-name]
+
+# Stop services
+docker-compose down
+
+# Rebuild services
+docker-compose build [service-name]
 ```
 
-#### Permission errors
+## 🔍 Health Check API
+
+### Check All Services
 ```bash
-# Fix storage permissions
-docker-compose exec <service> chmod -R 777 storage bootstrap/cache
+curl http://localhost:3000/health/services
 ```
 
-#### Redis connection issues
+### Check Specific Service
 ```bash
-# Check Redis is running
-docker-compose exec redis redis-cli ping
-
-# Clear Redis cache
-docker-compose exec redis redis-cli FLUSHALL
+curl http://localhost:3000/health/postgres-landlord
+curl http://localhost:3000/health/redis
+curl http://localhost:3000/health/auth-service
 ```
 
-## 📚 API Documentation
-
-### Tenant Management
-
-#### Create Tenant
-```http
-POST /api/tenants
-Content-Type: application/json
-X-Service-Token: {service_token}
-
+### Response Format
+```json
 {
-  "name": "Company Name",
-  "email": "admin@company.com",
-  "domain": "company.localhost",
-  "plan": "premium"
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "services": {
+    "postgres-landlord": {
+      "status": "healthy",
+      "name": "PostgreSQL Landlord",
+      "type": "database",
+      "message": "Connected successfully"
+    },
+    "redis": {
+      "status": "healthy",
+      "name": "Redis Cache",
+      "type": "cache",
+      "message": "Connected successfully"
+    }
+  },
+  "summary": {
+    "total": 11,
+    "healthy": 11,
+    "unhealthy": 0
+  }
 }
 ```
 
-#### Get Tenant
-```http
-GET /api/tenants/{tenant_id}
-X-Service-Token: {service_token}
+## 🌐 Multi-Tenant Architecture
+
+The platform supports multiple tenants with isolated databases:
+
+1. **Main domain**: `vtravel.com` (Landing page)
+2. **Tenant subdomains**: `{tenant}.vtravel.com` (Tenant applications)
+3. **Admin panel**: `admin.vtravel.com` (System administration)
+
+### Creating a New Tenant
+
+```bash
+# Using Make
+make create-tenant NAME=agency1
+
+# Or directly
+docker exec -it vtravel-tenant php artisan tenant:create agency1
 ```
 
-### Authentication
+## 📦 Project Structure
 
-#### Login
-```http
-POST /api/auth/login
-Content-Type: application/json
-X-Tenant-ID: {tenant_id}
-
-{
-  "email": "user@example.com",
-  "password": "password"
-}
+```
+saas_travel/
+├── docker-compose.yml       # Main Docker configuration
+├── .env                     # Environment variables
+├── Makefile                # Convenient commands
+├── nginx/                  # Nginx gateway configuration
+├── services/               # Microservices
+│   ├── health-service/     # System health monitoring
+│   ├── auth-service/       # Authentication service
+│   ├── tenant-service/     # Tenant management
+│   ├── crm-service/        # CRM module
+│   ├── sales-service/      # Sales module
+│   ├── financial-service/  # Financial module
+│   ├── operations-service/ # Operations module
+│   └── communication-service/ # Communication module
+├── frontend/               # Frontend applications
+├── infrastructure/         # Infrastructure configs
+└── monitoring/            # Monitoring tools
 ```
 
-#### Refresh Token
-```http
-POST /api/auth/refresh
-Authorization: Bearer {token}
-X-Tenant-ID: {tenant_id}
+## 🔧 Troubleshooting
+
+### Services not starting
+
+1. Check if ports are available:
+```bash
+lsof -i :80 -i :3000 -i :5432 -i :6379
 ```
 
-## 🤝 Contributing
+2. Check Docker logs:
+```bash
+docker-compose logs [service-name]
+```
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Verify Docker resources:
+```bash
+docker system df
+docker stats
+```
 
-## 📄 License
+### Database connection issues
 
-This project is licensed under the MIT License.
+1. Wait for databases to be ready:
+```bash
+# Check PostgreSQL status
+docker exec vtravel-postgres-landlord pg_isready
+docker exec vtravel-postgres-tenant pg_isready
+```
+
+2. Verify credentials in `.env` file
+
+### Health check failures
+
+1. Check individual service health:
+```bash
+curl http://localhost:3000/health/[service-name]
+```
+
+2. Restart problematic service:
+```bash
+docker-compose restart [service-name]
+```
+
+## 📱 Admin Panels
+
+- **RabbitMQ Management**: http://localhost:15672 (admin/admin123)
+- **MinIO Console**: http://localhost:9010 (minioadmin/minioadmin123)
+- **Health Dashboard**: http://localhost:3000/health/services
+
+## 🔐 Security
+
+- All passwords are stored in `.env` file
+- JWT tokens for API authentication
+- SSL/TLS support configured in Nginx
+- Rate limiting enabled on API endpoints
+- CORS configured for API access
+
+## 📝 API Documentation
+
+API endpoints are available through the Nginx gateway:
+
+- Auth: `http://localhost/api/auth/*`
+- Tenant: `http://localhost/api/tenant/*`
+- CRM: `http://localhost/api/crm/*`
+- Sales: `http://localhost/api/sales/*`
+- Financial: `http://localhost/api/financial/*`
+- Operations: `http://localhost/api/operations/*`
+- Communication: `http://localhost/api/communication/*`
+
+## 🚦 Development Workflow
+
+1. **Make changes** to service code
+2. **Rebuild** the affected service:
+   ```bash
+   docker-compose build [service-name]
+   ```
+3. **Restart** the service:
+   ```bash
+   docker-compose restart [service-name]
+   ```
+4. **Check logs** for errors:
+   ```bash
+   docker-compose logs -f [service-name]
+   ```
+
+## 📊 Monitoring
+
+The platform includes comprehensive monitoring:
+
+- **Health checks** for all services
+- **Prometheus metrics** at `/metrics`
+- **Structured JSON logging**
+- **Activity and audit logs**
 
 ## 🆘 Support
 
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Check the [Wiki](wiki-url) for detailed documentation
-- Contact the development team
+For issues or questions:
+1. Check the health dashboard first
+2. Review service logs
+3. Verify environment configuration
+4. Check Docker resource usage
 
-## 🙏 Acknowledgments
+## 📄 License
 
-- [Laravel](https://laravel.com)
-- [stancl/tenancy](https://tenancyforlaravel.com)
-- [Docker](https://docker.com)
-- [PostgreSQL](https://postgresql.org)
-- [Redis](https://redis.io)
-- [Nginx](https://nginx.org)
+Proprietary - VTravel SaaS Platform
 
 ---
 
-Built with ❤️ for scalable SaaS applications
+**Version**: 1.0.0  
+**Last Updated**: 2024
