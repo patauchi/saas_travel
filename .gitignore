@@ -1,0 +1,143 @@
+# Laravel specific
+vendor/
+node_modules/
+npm-debug.log
+yarn-error.log
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+
+# Docker volumes
+postgres_central_data/
+postgres_tenants_data/
+redis_data/
+
+# Secrets - NEVER commit these
+secrets/
+*.key
+*.pem
+*.crt
+*.cert
+
+# Backups
+backups/
+*.sql
+*.tar.gz
+*.zip
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.project
+.classpath
+.settings/
+.buildpath
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+nginx/logs/
+storage/logs/
+
+# Laravel storage (except framework)
+services/*/storage/app/public/
+services/*/storage/framework/cache/data/
+services/*/storage/framework/sessions/
+services/*/storage/framework/testing/
+services/*/storage/framework/views/
+services/*/storage/logs/
+services/*/bootstrap/cache/
+
+# Compiled assets
+public/hot
+public/storage
+public/mix-manifest.json
+public/css/app.css
+public/js/app.js
+
+# Testing
+.phpunit.cache
+.php_cs.cache
+coverage/
+phpunit.xml
+.phpunit.result.cache
+
+# Composer
+composer.phar
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.cache
+*.pid
+*.seed
+*.pid.lock
+
+# Database dumps
+*.mysql
+*.pgsql
+*.sqlite
+
+# Environment-specific
+.env.local
+.env.production
+.env.staging
+.env.testing
+
+# Laravel Horizon
+services/*/horizon.log
+
+# Laravel Telescope
+services/*/telescope.log
+
+# Generated documentation
+docs/_build/
+docs/api/
+
+# Package managers
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# Build artifacts
+/build
+/dist
+/out
+
+# Monitoring and profiling
+.xdebug/
+.blackfire/
+
+# Custom ignore patterns for this project
+services/*/public/hot
+services/*/public/storage
+services/*/storage/*.key
+services/*/vendor
+services/*/node_modules
+services/*/.env
+services/*/.env.backup
+services/*/.phpunit.result.cache
