@@ -14,11 +14,16 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY conf.d/*.conf /etc/nginx/conf.d/
 
+# Copy frontend files
+COPY ../frontend /usr/share/nginx/html/frontend
+
 # Create necessary directories
 RUN mkdir -p /var/cache/nginx \
     /var/log/nginx \
     /etc/nginx/ssl \
-    /usr/share/nginx/html
+    /usr/share/nginx/html \
+    /usr/share/nginx/html/frontend \
+    /usr/share/nginx/html/frontend/central
 
 # Create a self-signed SSL certificate for development
 RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \

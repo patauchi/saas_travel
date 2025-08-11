@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTravel Admin Dashboard - Central Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .login-box h2 {
+            margin-bottom: 1.5rem;
+            color: #333;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            border: none;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .error-message {
+            color: #f56565;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.active {
+            display: block;
+        }
+
+        .header {
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1rem 0;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .main-content {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            color: #718096;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .stat-change.positive {
+            color: #48bb78;
+        }
+
+        .stat-change.negative {
+            color: #f56565;
+        }
+
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            color: #2d3748;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem;
+            background: #f7fafc;
+            color: #4a5568;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 0.75rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-pending {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-suspended {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            padding: 0.25rem 0.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #718096;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tab {
+            padding: 0.75rem 1rem;
+            background: none;
+            border: none;
+            color: #718096;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .tab.active {
+            color: #667eea;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #718096;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #718096;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <h2>Admin Login</h2>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required placeholder="admin@vtravel.com">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required placeholder="Enter password">
+                </div>
+                <div id="loginError" class="error-message"></div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="dashboard">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">VTravel Admin</div>
+                <div class="user-info">
+                    <span id="userName">Admin</span>
+                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Tenants</h3>
+                    <div class="stat-value" id="totalTenants">0</div>
+                    <div class="stat-change positive">+12% this month</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Active Tenants</h3>
+                    <div class="stat-value" id="activeTenants">0</div>
+                    <div class="stat-change positive">+5% this month</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Users</h3>
+                    <div class="stat-value" id="totalUsers">0</div>
+                    <div class="stat-change positive">+18% this month</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Monthly Revenue</h3>
+                    <div class="stat-value" id="monthlyRevenue">$0</div>
+                    <div class="stat-change positive">+8% this month</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('tenants')">Tenants</button>
+                <button class="tab" onclick="showTab('users')">Users</button>
+                <button class="tab" onclick="showTab('plans')">Plans</button>
+                <button class="tab" onclick="showTab('settings')">Settings</button>
+            </div>
+
+            <!-- Tenants Tab -->
+            <div id="tenantsTab" class="tab-content">
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Tenant Management</h2>
+                        <button class="btn btn-primary" onclick="showCreateTenantModal()">Create New Tenant</button>
+                    </div>
+
+                    <div class="search-bar">
+                        <input type="text" id="searchTenants" placeholder="Search tenants..." onkeyup="searchTenants()">
+                        <select id="filterStatus" onchange="filterTenants()">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="pending">Pending</option>
+                            <option value="suspended">Suspended</option>
+                        </select>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="tenantsTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Slug</th>
+                                    <th>Plan</th>
+                                    <th>Status</th>
+                                    <th>Users</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tenantsTableBody">
+                                <tr>
+                                    <td colspan="7" class="loading">Loading tenants...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Tab -->
+            <div id="usersTab" class="tab-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">User Management</h2>
+                    </div>
+
+                    <div class="search-bar">
+                        <input type="text" placeholder="Search users...">
+                        <select>
+                            <option value="">All Tenants</option>
+                        </select>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Tenant</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Last Login</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="7" class="loading">Loading users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plans Tab -->
+            <div id="plansTab" class="tab-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Subscription Plans</h2>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Basic Plan</h3>
+                            <div class="stat-value">$29.99</div>
+                            <p>5 users, 1GB storage</p>
+                            <div class="stat-change">15 tenants</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Professional</h3>
+                            <div class="stat-value">$99.99</div>
+                            <p>25 users, 10GB storage</p>
+                            <div class="stat-change">8 tenants</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Enterprise</h3>
+                            <div class="stat-value">$299.99</div>
+                            <p>Unlimited users & storage</p>
+                            <div class="stat-change">3 tenants</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settingsTab" class="tab-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">System Settings</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label>API Endpoint</label>
+                        <input type="text" value="http://localhost:9001/api" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tenant Service</label>
+                        <input type="text" value="http://localhost:9002/api" readonly>
+                    </div>
+
+                    <button class="btn btn-primary">Save Settings</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create Tenant Modal -->
+    <div id="createTenantModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Tenant</h2>
+                <button class="close-btn" onclick="closeCreateTenantModal()">&times;</button>
+            </div>
+
+            <form id="createTenantForm" onsubmit="createTenant(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Agency Name *</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Agency Slug *</label>
+                        <input type="text" name="slug" required pattern="[a-z0-9-]+">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Owner Name *</label>
+                        <input type="text" name="owner_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Owner Email *</label>
+                        <input type="email" name="owner_email" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Owner Password *</label>
+                    <input type="password" name="owner_password" required minlength="6">
+                </div>
+
+                <div class="form-group">
+                    <label>Plan *</label>
+                    <select name="plan" required>
+                        <option value="basic">Basic - $29.99/mo</option>
+                        <option value="professional">Professional - $99.99/mo</option>
+                        <option value="enterprise">Enterprise - $299.99/mo</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Trial Days</label>
+                    <input type="number" name="trial_days" value="30" min="0" max="90">
+                </div>
+
+                <div class="form-row">
+                    <button type="submit" class="btn btn-primary">Create Tenant</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateTenantModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:9001/api';
+        let authToken = localStorage.getItem('admin_token');
+        let currentUser = null;
+        let tenants = [];
+
+        // Check authentication on load
+        window.onload = function() {
+            if (authToken) {
+                validateToken();
+            }
+        };
+
+        // Login handler
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                // For demo purposes - in production, use actual super admin tenant
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        tenant_id: 1 // System tenant ID
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    authToken = data.data.access_token;
+                    localStorage.setItem('admin_token', authToken);
+                    currentUser = data.data.user;
+                    showDashboard();
+                } else {
+                    document.getElementById('loginError').textContent = data.message || 'Invalid credentials';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('loginError').textContent = 'Connection error. Please try again.';
+            }
+        }
+
+        // Validate token
+        async function validateToken() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data.data;
+                    showDashboard();
+                } else {
+                    logout();
+                }
+            } catch (error) {
+                logout();
+            }
+        }
+
+        // Show dashboard
+        function showDashboard() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+            document.getElementById('userName').textContent = currentUser?.name || 'Admin';
+            loadTenants();
+            loadStats();
+        }
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('admin_token');
+            authToken = null;
+            currentUser = null;
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('dashboard').classList.remove('active');
+        }
+
+        // Show tab
+        function showTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Show/hide tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            document.getElementById(tabName + 'Tab').style.display = 'block';
+        }
+
+        // Load tenants
+        async function loadTenants() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tenants`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    tenants = data.data.data || [];
+                    displayTenants(tenants);
+                }
+            } catch (error) {
+                console.error('Error loading tenants:', error);
+            }
+        }
+
+        // Display tenants
+        function displayTenants(tenantsToDisplay) {
+            const tbody = document.getElementById('tenantsTableBody');
+
+            if (tenantsToDisplay.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No tenants found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = tenantsToDisplay.map(tenant => `
+                <tr>
+                    <td>${tenant.name}</td>
+                    <td>${tenant.slug}</td>
+                    <td>${tenant.plan}</td>
+                    <td><span class="status-badge status-${tenant.status}">${tenant.status}</span></td>
+                    <td>${tenant.users_count || 0}</td>
+                    <td>${new Date(tenant.created_at).toLocaleDateString()}</td>
+                    <td class="actions">
+                        <button class="action-btn btn-secondary" onclick="viewTenant(${tenant.id})">View</button>
+                        <button class="action-btn btn-danger" onclick="suspendTenant(${tenant.id})">Suspend</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Load stats
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tenants`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const allTenants = data.data.data || [];
+
+                    document.getElementById('totalTenants').textContent = allTenants.length;
+                    document.getElementById('activeTenants').textContent = allTenants.filter(t => t.status === 'active').length;
+
+                    // Calculate revenue
+                    const planPrices = { basic: 29.99, professional: 99.99, enterprise: 299.99 };
+                    const revenue = allTenants.reduce((sum, t) => sum + (planPrices[t.plan] || 0), 0);
+                    document.getElementById('monthlyRevenue').textContent = `$${revenue.toFixed(2)}`;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Search tenants
+        function searchTenants() {
+            const searchTerm = document.getElementById('searchTenants').value.toLowerCase();
+            const filtered = tenants.filter(t =>
+                t.name.toLowerCase().includes(searchTerm) ||
+                t.slug.toLowerCase().includes(searchTerm)
+            );
+            displayTenants(filtered);
+        }
+
+        // Filter tenants
+        function filterTenants() {
+            const status = document.getElementById('filterStatus').value;
+            const filtered = status ? tenants.filter(t => t.status === status) : tenants;
+            displayTenants(filtered);
+        }
+
+        // Show create tenant modal
+        function showCreateTenantModal() {
+            document.getElementById('createTenantModal').classList.add('active');
+        }
+
+        // Close create tenant modal
+        function closeCreateTenantModal() {
+            document.getElementById('createTenantModal').classList.remove('active');
+            document.getElementById('createTenantForm').reset();
+        }
+
+        // Create tenant
+        async function createTenant(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const data = Object.fromEntries(formData);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/tenants`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Tenant created successfully!');
+                    closeCreateTenantModal();
+                    loadTenants();
+                    loadStats();
+                } else {
+                    alert('Error creating tenant: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error creating tenant:', error);
+                alert('Connection error. Please try again.');
+            }
+        }
+
+        // View tenant
+        function viewTenant(id) {
+            // Implement view tenant functionality
+            alert('View tenant ' + id);
+        }
+
+        // Suspend tenant
+        async function suspendTenant(id) {
+            if (!confirm('Are you sure you want to suspend this tenant?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/tenants/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ status: 'suspended' })
+                });
+
+                if (response.ok) {
+                    alert('Tenant suspended successfully');
+                    loadTenants();
+                }
+            } catch (error) {
+                console.error('Error suspending tenant:', error);
+                alert('Error suspending tenant');
+            }
+        }
+    </script>
+</body>
+</html>
