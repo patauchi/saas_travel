@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTravel - Travel Agency Management Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            transition: opacity 0.3s;
+        }
+
+        .nav-links a:hover {
+            opacity: 0.8;
+        }
+
+        .btn {
+            padding: 0.5rem 1.5rem;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        .hero {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            padding: 4rem 0;
+        }
+
+        .hero-content {
+            color: white;
+            max-width: 600px;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 3rem;
+        }
+
+        .tenant-access {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .tenant-access h3 {
+            margin-bottom: 1rem;
+        }
+
+        .tenant-form {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .tenant-form input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .tenant-form input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .tenant-form button {
+            background: white;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .feature h4 {
+            color: white;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            color: #333;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-group small {
+            color: #999;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+            display: block;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .plans {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .plan-card {
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .plan-card:hover,
+        .plan-card.selected {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .plan-card h4 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .plan-price {
+            font-size: 1.5rem;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .plan-features {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .error {
+            color: #e74c3c;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .success {
+            background: #4caf50;
+            color: white;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        footer {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 2rem 0;
+            color: white;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="/" class="logo">VTravel</a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="/central/" class="btn btn-primary">Admin Dashboard</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Travel Agency Management Made Simple</h1>
+                <p>Complete SaaS platform for managing your travel agency operations, bookings, and customer relationships.</p>
+
+                <div class="hero-buttons">
+                    <button class="btn btn-primary" onclick="showSignupModal()">Start Free Trial</button>
+                    <a href="#demo" class="btn btn-secondary">Request Demo</a>
+                </div>
+
+                <div class="tenant-access">
+                    <h3>Access Your Agency Portal</h3>
+                    <form class="tenant-form" onsubmit="accessTenant(event)">
+                        <input type="text" id="tenantSlug" placeholder="Enter your agency code (e.g., awesome-travels)" required>
+                        <button type="submit" class="btn btn-primary">Access Portal</button>
+                    </form>
+                    <small style="color: rgba(255,255,255,0.8)">Or use your custom domain if configured</small>
+                </div>
+            </div>
+
+            <div class="features" id="features">
+                <div class="feature">
+                    <h4>🏢 Multi-Tenant</h4>
+                    <p>Each agency gets its own isolated environment with dedicated database</p>
+                </div>
+                <div class="feature">
+                    <h4>📊 Complete CRM</h4>
+                    <p>Manage customers, leads, and relationships effectively</p>
+                </div>
+                <div class="feature">
+                    <h4>✈️ Booking Management</h4>
+                    <p>Handle flights, hotels, tours, and packages seamlessly</p>
+                </div>
+                <div class="feature">
+                    <h4>💰 Financial Control</h4>
+                    <p>Invoicing, payments, and comprehensive financial reports</p>
+                </div>
+                <div class="feature">
+                    <h4>📧 Communications</h4>
+                    <p>Email templates, notifications, and real-time updates</p>
+                </div>
+                <div class="feature">
+                    <h4>🔐 Secure & Scalable</h4>
+                    <p>Enterprise-grade security with unlimited scalability</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Signup Modal -->
+    <div id="signupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Start Your Free Trial</h2>
+                <button class="close-modal" onclick="closeSignupModal()">&times;</button>
+            </div>
+
+            <div id="successMessage" class="success" style="display: none;">
+                Agency created successfully! Redirecting to your portal...
+            </div>
+
+            <form id="signupForm" onsubmit="createTenant(event)">
+                <div class="form-group">
+                    <label for="agencyName">Agency Name *</label>
+                    <input type="text" id="agencyName" required placeholder="Awesome Travels">
+                </div>
+
+                <div class="form-group">
+                    <label for="agencySlug">Agency Code *</label>
+                    <input type="text" id="agencySlug" required pattern="[a-z0-9-]+" placeholder="awesome-travels">
+                    <small>Lowercase letters, numbers, and hyphens only</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="ownerName">Your Name *</label>
+                    <input type="text" id="ownerName" required placeholder="John Doe">
+                </div>
+
+                <div class="form-group">
+                    <label for="ownerEmail">Email Address *</label>
+                    <input type="email" id="ownerEmail" required placeholder="john@example.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="ownerPassword">Password *</label>
+                    <input type="password" id="ownerPassword" required minlength="6" placeholder="Min 6 characters">
+                </div>
+
+                <div class="form-group">
+                    <label>Select Plan</label>
+                    <div class="plans">
+                        <div class="plan-card selected" data-plan="basic">
+                            <h4>Basic</h4>
+                            <div class="plan-price">$29.99/mo</div>
+                            <div class="plan-features">Up to 5 users</div>
+                        </div>
+                        <div class="plan-card" data-plan="professional">
+                            <h4>Professional</h4>
+                            <div class="plan-price">$99.99/mo</div>
+                            <div class="plan-features">Up to 25 users</div>
+                        </div>
+                        <div class="plan-card" data-plan="enterprise">
+                            <h4>Enterprise</h4>
+                            <div class="plan-price">$299.99/mo</div>
+                            <div class="plan-features">Unlimited users</div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="selectedPlan" value="basic">
+                </div>
+
+                <div class="form-buttons">
+                    <button type="submit" class="btn btn-primary" style="flex: 1">Start 30-Day Free Trial</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeSignupModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 VTravel. All rights reserved. | <a href="/central/" style="color: white;">Admin Access</a></p>
+        </div>
+    </footer>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:9001/api';
+        const TENANT_BASE_URL = 'http://localhost:9002';
+
+        // Plan selection
+        document.querySelectorAll('.plan-card').forEach(card => {
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+                this.classList.add('selected');
+                document.getElementById('selectedPlan').value = this.dataset.plan;
+            });
+        });
+
+        // Show/hide signup modal
+        function showSignupModal() {
+            document.getElementById('signupModal').classList.add('active');
+        }
+
+        function closeSignupModal() {
+            document.getElementById('signupModal').classList.remove('active');
+            document.getElementById('signupForm').reset();
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        // Access tenant portal
+        async function accessTenant(event) {
+            event.preventDefault();
+            const slug = document.getElementById('tenantSlug').value.trim();
+
+            try {
+                // Check if tenant exists
+                const response = await fetch(`${API_BASE_URL}/tenant/lookup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ identifier: slug })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Redirect to tenant portal
+                    window.location.href = `${TENANT_BASE_URL}/${slug}/login`;
+                } else {
+                    alert('Agency not found. Please check your agency code.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Unable to connect to the service. Please try again.');
+            }
+        }
+
+        // Create new tenant
+        async function createTenant(event) {
+            event.preventDefault();
+
+            const formData = {
+                name: document.getElementById('agencyName').value,
+                slug: document.getElementById('agencySlug').value,
+                plan: document.getElementById('selectedPlan').value,
+                owner_name: document.getElementById('ownerName').value,
+                owner_email: document.getElementById('ownerEmail').value,
+                owner_password: document.getElementById('ownerPassword').value,
+                trial_days: 30
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/tenants`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('successMessage').style.display = 'block';
+                    document.getElementById('signupForm').style.display = 'none';
+
+                    // Redirect after 3 seconds
+                    setTimeout(() => {
+                        window.location.href = `${TENANT_BASE_URL}/${formData.slug}/login`;
+                    }, 3000);
+                } else {
+                    if (data.errors) {
+                        const errorMessages = Object.values(data.errors).flat().join('\n');
+                        alert('Validation errors:\n' + errorMessages);
+                    } else {
+                        alert(data.message || 'Failed to create agency. Please try again.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Unable to connect to the service. Please try again.');
+            }
+        }
+
+        // Auto-generate slug from agency name
+        document.getElementById('agencyName')?.addEventListener('input', function(e) {
+            const slug = e.target.value
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            document.getElementById('agencySlug').value = slug;
+        });
+    </script>
+</body>
+</html>
